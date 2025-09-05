@@ -114,6 +114,7 @@ const ProductForm = ({ product, onSubmit, onCancel }) => {
         ...formData,
         image: imageUrl,
         stock: parseInt(formData.stock),
+        createdAt: product ? product.createdAt : new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
 

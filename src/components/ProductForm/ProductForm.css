@@ -5,6 +5,7 @@
   max-height: 90vh;
   display: flex;
   flex-direction: column;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3);
 }
 
 .form-header {
@@ -13,7 +14,7 @@
   align-items: center;
   padding: 30px;
   border-bottom: 1px solid #eee;
-  background: #f8f9fa;
+  background: linear-gradient(135deg, #c0ff00 0%, #a8d600 100%);
 }
 
 .form-header h2 {
@@ -27,7 +28,7 @@
   background: none;
   border: none;
   font-size: 30px;
-  color: #666;
+  color: #000;
   cursor: pointer;
   width: 40px;
   height: 40px;
@@ -39,8 +40,9 @@
 }
 
 .close-btn:hover {
-  background: #eee;
+  background: rgba(0, 0, 0, 0.1);
   color: #000;
+  transform: scale(1.1);
 }
 
 .form-content {

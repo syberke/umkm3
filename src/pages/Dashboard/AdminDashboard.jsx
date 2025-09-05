@@ -3,8 +3,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useProducts } from '../../hooks/useProducts';
 import { collection, getDocs, deleteDoc, doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
-import { uploadToCloudinary } from '../../services/cloudinary';
 import ProductForm from '../../components/ProductForm/ProductForm';
+import ProductStats from '../../components/ProductStats/ProductStats';
 import './Dashboard.css';
 
 const AdminDashboard = () => {
@@ -14,6 +14,11 @@ const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [showProductForm, setShowProductForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('name');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(6);
   const [websiteContent, setWebsiteContent] = useState({
     companyProfile: {
       name: 'Stride',
@@ -52,6 +57,34 @@ const AdminDashboard = () => {
     fetchWebsiteContent();
     updateStats();
   }, [products]);
+
+  // Filter and sort products
+  const filteredProducts = products.filter(product => {
+    const matchesSearch = product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         product.description?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = categoryFilter === 'all' || product.category === categoryFilter;
+    return matchesSearch && matchesCategory;
+  }).sort((a, b) => {
+    switch (sortBy) {
+      case 'name':
+        return (a.name || '').localeCompare(b.name || '');
+      case 'price':
+        const priceA = parseFloat((a.price || '0').replace(/[^\d]/g, ''));
+        const priceB = parseFloat((b.price || '0').replace(/[^\d]/g, ''));
+        return priceA - priceB;
+      case 'category':
+        return (a.category || '').localeCompare(b.category || '');
+      case 'stock':
+        return (a.stock || 0) - (b.stock || 0);
+      default:
+        return 0;
+    }
+  });
+
+  // Pagination
+  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedProducts = filteredProducts.slice(startIndex, startIndex + itemsPerPage);
 
   const fetchUsers = async () => {
     try {
@@ -130,9 +163,42 @@ const AdminDashboard = () => {
     if (window.confirm('Apakah Anda yakin ingin menghapus produk ini?')) {
       try {
         await deleteProduct(productId);
+        // Reset to first page if current page becomes empty
+        if (paginatedProducts.length === 1 && currentPage > 1) {
+          setCurrentPage(currentPage - 1);
+        }
       } catch (error) {
         console.error('Error deleting product:', error);
       }
+    }
+  };
+
+  const handleBulkDelete = async (selectedIds) => {
+    if (window.confirm(`Apakah Anda yakin ingin menghapus ${selectedIds.length} produk?`)) {
+      try {
+        await Promise.all(selectedIds.map(id => deleteProduct(id)));
+        setSelectedProducts([]);
+      } catch (error) {
+        console.error('Error bulk deleting products:', error);
+      }
+    }
+  };
+
+  const [selectedProducts, setSelectedProducts] = useState([]);
+
+  const handleSelectProduct = (productId) => {
+    setSelectedProducts(prev => 
+      prev.includes(productId) 
+        ? prev.filter(id => id !== productId)
+        : [...prev, productId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedProducts.length === paginatedProducts.length) {
+      setSelectedProducts([]);
+    } else {
+      setSelectedProducts(paginatedProducts.map(p => p.id));
     }
   };
 
@@ -286,52 +352,176 @@ const AdminDashboard = () => {
             <section className="dashboard-section">
               <div className="section-header">
                 <h2>Kelola Produk</h2>
-                <button 
-                  className="add-btn"
-                  onClick={() => {
-                    setEditingProduct(null);
-                    setShowProductForm(true);
-                  }}
-                >
-                  + Tambah Produk
-                </button>
+                <div className="header-actions">
+                  <button 
+                    className="add-btn"
+                    onClick={() => {
+                      setEditingProduct(null);
+                      setShowProductForm(true);
+                    }}
+                  >
+                    + Tambah Produk
+                  </button>
+                  {selectedProducts.length > 0 && (
+                    <button 
+                      className="bulk-delete-btn"
+                      onClick={() => handleBulkDelete(selectedProducts)}
+                    >
+                      Hapus Terpilih ({selectedProducts.length})
+                    </button>
+                  )}
+                </div>
               </div>
 
+              {/* Product Statistics */}
+              <ProductStats products={products} />
+
+              {/* Product Filters */}
+              <div className="products-filters">
+                <div className="filter-row">
+                  <div className="search-box">
+                    <input
+                      type="text"
+                      placeholder="Cari produk..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="search-input"
+                    />
+                  </div>
+                  <select 
+                    value={categoryFilter} 
+                    onChange={(e) => setCategoryFilter(e.target.value)}
+                    className="filter-select"
+                  >
+                    <option value="all">Semua Kategori</option>
+                    <option value="casual">Casual</option>
+                    <option value="running">Running</option>
+                    <option value="formal">Formal</option>
+                    <option value="sport">Sport</option>
+                  </select>
+                  <select 
+                    value={sortBy} 
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="filter-select"
+                  >
+                    <option value="name">Urutkan: Nama</option>
+                    <option value="price">Urutkan: Harga</option>
+                    <option value="category">Urutkan: Kategori</option>
+                    <option value="stock">Urutkan: Stok</option>
+                  </select>
+                </div>
+              </div>
               {loading ? (
                 <div className="loading">Memuat produk...</div>
               ) : (
-                <div className="admin-products-grid">
-                  {products.map((product, index) => (
-                    <div key={product.id} className="admin-product-card">
-                      <div className="product-image">
-                        <img 
-                          src={product.image || `https://images.pexels.com/photos/${1598505 + index}/pexels-photo-${1598505 + index}.jpeg?auto=compress&cs=tinysrgb&w=300&h=200&fit=crop`} 
-                          alt={product.name} 
-                        />
+                <>
+                  {/* Products Table */}
+                  <div className="products-table-container">
+                    <div className="products-table">
+                      <div className="table-header">
+                        <div className="header-cell">
+                          <input
+                            type="checkbox"
+                            checked={selectedProducts.length === paginatedProducts.length && paginatedProducts.length > 0}
+                            onChange={handleSelectAll}
+                          />
+                        </div>
+                        <div className="header-cell">Gambar</div>
+                        <div className="header-cell">Nama Produk</div>
+                        <div className="header-cell">Kategori</div>
+                        <div className="header-cell">Harga</div>
+                        <div className="header-cell">Stok</div>
+                        <div className="header-cell">Aksi</div>
                       </div>
-                      <div className="product-info">
-                        <h3>{product.name}</h3>
-                        <p className="product-category">{product.category}</p>
-                        <p className="product-price">{product.price}</p>
-                        <p className="product-stock">Stok: {product.stock}</p>
-                      </div>
-                      <div className="product-actions">
-                        <button 
-                          className="edit-btn"
-                          onClick={() => handleEditProduct(product)}
-                        >
-                          Edit
-                        </button>
-                        <button 
-                          className="delete-btn"
-                          onClick={() => handleDeleteProduct(product.id)}
-                        >
-                          Hapus
-                        </button>
-                      </div>
+                      
+                      {paginatedProducts.map((product, index) => (
+                        <div key={product.id} className="table-row">
+                          <div className="table-cell">
+                            <input
+                              type="checkbox"
+                              checked={selectedProducts.includes(product.id)}
+                              onChange={() => handleSelectProduct(product.id)}
+                            />
+                          </div>
+                          <div className="table-cell">
+                            <img 
+                              src={product.image || `https://images.pexels.com/photos/${1598505 + index}/pexels-photo-${1598505 + index}.jpeg?auto=compress&cs=tinysrgb&w=60&h=60&fit=crop`} 
+                              alt={product.name}
+                              className="product-thumbnail"
+                            />
+                          </div>
+                          <div className="table-cell">
+                            <div className="product-name">{product.name}</div>
+                            <div className="product-description">{product.description?.substring(0, 50)}...</div>
+                          </div>
+                          <div className="table-cell">
+                            <span className={`category-badge ${product.category}`}>
+                              {product.category}
+                            </span>
+                          </div>
+                          <div className="table-cell">
+                            <span className="product-price">{product.price}</span>
+                          </div>
+                          <div className="table-cell">
+                            <span className={`stock-badge ${product.stock < 10 ? 'low' : 'normal'}`}>
+                              {product.stock}
+                            </span>
+                          </div>
+                          <div className="table-cell">
+                            <div className="action-buttons">
+                              <button 
+                                className="edit-btn"
+                                onClick={() => handleEditProduct(product)}
+                                title="Edit Produk"
+                              >
+                                ✏️
+                              </button>
+                              <button 
+                                className="delete-btn"
+                                onClick={() => handleDeleteProduct(product.id)}
+                                title="Hapus Produk"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </div>
+
+                  {/* Pagination */}
+                  {totalPages > 1 && (
+                    <div className="pagination">
+                      <button 
+                        className="pagination-btn"
+                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                        disabled={currentPage === 1}
+                      >
+                        ← Sebelumnya
+                      </button>
+                      
+                      <div className="pagination-info">
+                        Halaman {currentPage} dari {totalPages} 
+                        ({filteredProducts.length} produk)
+                      </div>
+                      
+                      <button 
+                        className="pagination-btn"
+                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                        disabled={currentPage === totalPages}
+                      >
+                        Selanjutnya →
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Products Grid View (Alternative) */}
+                  <div className="view-toggle">
+                    <button className="toggle-btn active">📋 Tabel</button>
+                    <button className="toggle-btn">🔲 Grid</button>
+                  </div>
+                </>
               )}
             </section>
           )}
