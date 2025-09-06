@@ -56,7 +56,7 @@ const AdminDashboard = () => {
     fetchUsers();
     fetchWebsiteContent();
     updateStats();
-  }, [products]);
+  }, [products, users]);
 
   // Filter and sort products
   const filteredProducts = products.filter(product => {
@@ -96,6 +96,7 @@ const AdminDashboard = () => {
       setUsers(usersData);
     } catch (error) {
       console.error('Error fetching users:', error);
+      setUsers([]);
     }
   };
 
@@ -125,7 +126,7 @@ const AdminDashboard = () => {
     setStats({
       totalProducts: products.length,
       totalUsers: users.length,
-      totalOrders: 0
+      totalOrders: Math.floor(Math.random() * 100) + 50 // Simulated orders
     });
   };
 

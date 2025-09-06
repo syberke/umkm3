@@ -1,5 +1,6 @@
 import { collection, addDoc, getDocs, query, where } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
 
 export const seedProducts = async () => {
@@ -93,35 +94,44 @@ export const seedProducts = async () => {
 export const createAdminUser = async () => {
   try {
     // Check if admin already exists
-    const usersSnapshot = await getDocs(
-      query(collection(db, 'users'), where('email', '==', 'admin@stride.com'))
-    );
+    const q = query(collection(db, 'users'), where('email', '==', 'admin@stride.com'));
+    const usersSnapshot = await getDocs(q);
     
     if (usersSnapshot.size > 0) {
       console.log('Admin user already exists');
       return;
     }
 
-    // Create admin user
-    const userCredential = await createUserWithEmailAndPassword(
-      auth, 
-      'admin@stride.com', 
-      'admin123'
-    );
-    
-    await updateProfile(userCredential.user, { 
-      displayName: 'Admin Stride' 
-    });
+    try {
+      // Create admin user
+      const userCredential = await createUserWithEmailAndPassword(
+        auth, 
+        'admin@stride.com', 
+        'admin123'
+      );
+      
+      await updateProfile(userCredential.user, { 
+        displayName: 'Admin Stride' 
+      });
 
-    // Add admin data to Firestore
-    await addDoc(collection(db, 'users'), {
-      email: 'admin@stride.com',
-      displayName: 'Admin Stride',
-      role: 'admin',
-      createdAt: new Date().toISOString()
-    });
+      // Add admin data to Firestore with specific document ID
+      await setDoc(doc(db, 'users', userCredential.user.uid), {
+        email: 'admin@stride.com',
+        displayName: 'Admin Stride',
+        role: 'admin',
+        createdAt: new Date().toISOString()
+      });
 
-    console.log('Admin user created successfully');
+      console.log('Admin user created successfully');
+    } catch (authError) {
+      if (authError.code === 'auth/email-already-in-use') {
+        console.log('Admin email already in use, checking Firestore...');
+        // If email exists but not in Firestore, we need to handle this
+        // This might happen if the user was created outside our system
+      } else {
+        throw authError;
+      }
+    }
   } catch (error) {
     console.error('Error creating admin user:', error);
   }

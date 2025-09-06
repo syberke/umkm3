@@ -27,9 +27,30 @@ const Login = () => {
 
     try {
       await login(formData.email, formData.password);
-      navigate('/dashboard');
+      // Navigation will be handled by the auth state change
+      // Check user role and navigate accordingly
+      const user = auth.currentUser;
+      if (user) {
+        // Wait a bit for the auth context to update
+        setTimeout(() => {
+          if (formData.email === 'admin@stride.com') {
+            navigate('/admin');
+          } else {
+            navigate('/dashboard');
+          }
+        }, 500);
+      }
     } catch (error) {
-      setError('Email atau password salah');
+      console.error('Login error:', error);
+      if (error.code === 'auth/user-not-found') {
+        setError('Email tidak terdaftar');
+      } else if (error.code === 'auth/wrong-password') {
+        setError('Password salah');
+      } else if (error.code === 'auth/invalid-email') {
+        setError('Format email tidak valid');
+      } else {
+        setError('Terjadi kesalahan saat login');
+      }
     } finally {
       setLoading(false);
     }

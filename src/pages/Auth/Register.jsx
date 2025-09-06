@@ -40,9 +40,25 @@ const Register = () => {
 
     try {
       await signup(formData.email, formData.password, formData.displayName);
-      navigate('/dashboard');
+      // Navigation will be handled by auth state change
+      setTimeout(() => {
+        if (formData.email === 'admin@stride.com') {
+          navigate('/admin');
+        } else {
+          navigate('/dashboard');
+        }
+      }, 500);
     } catch (error) {
-      setError('Gagal membuat akun. Email mungkin sudah terdaftar.');
+      console.error('Registration error:', error);
+      if (error.code === 'auth/email-already-in-use') {
+        setError('Email sudah terdaftar');
+      } else if (error.code === 'auth/weak-password') {
+        setError('Password terlalu lemah');
+      } else if (error.code === 'auth/invalid-email') {
+        setError('Format email tidak valid');
+      } else {
+        setError('Gagal membuat akun');
+      }
     } finally {
       setLoading(false);
     }

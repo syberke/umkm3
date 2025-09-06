@@ -22,6 +22,8 @@ const Navbar = () => {
     try {
       await logout();
       setIsMobileMenuOpen(false);
+      // Redirect to home after logout
+      window.location.href = '/';
     } catch (error) {
       console.error('Error logging out:', error);
     }
